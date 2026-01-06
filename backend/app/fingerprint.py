@@ -240,11 +240,3 @@ class AudioFingerprinter:
     def frames_to_time(self, frames: int) -> float:
         """Convert frame index to time in seconds."""
         return frames * self.hop_length / self.sample_rate
-    
-    def debug_spectrogram(self, spectrogram: np.ndarray) -> None:
-        """Print debug info about spectrogram for troubleshooting."""
-        print(f"Spectrogram shape: {spectrogram.shape}")
-        print(f"Min value: {spectrogram.min():.2f} dB")
-        print(f"Max value: {spectrogram.max():.2f} dB")
-        print(f"Mean value: {spectrogram.mean():.2f} dB")
-        print(f"Values > {self.min_amplitude} dB: {np.sum(spectrogram > self.min_amplitude)} out of {spectrogram.size}")
