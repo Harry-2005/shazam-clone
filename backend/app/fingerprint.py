@@ -28,11 +28,11 @@ class AudioFingerprinter:
         Initialize the fingerprinter with audio processing parameters.
         
         Args:
-            sample_rate: Audio sample rate in Hz (22050 is good for music)
-            n_fft: FFT window size (larger = better frequency resolution)
-            hop_length: Number of samples between successive frames
-            freq_min: Minimum frequency to consider (Hz)
-            freq_max: Maximum frequency to consider (Hz)
+            sample_rate: Audio sample rate in Hz (22050 is good for music)--we capture 22,050 samples per second
+            n_fft: FFT window size (larger = better frequency resolution)--we analyze 2048 samples at a time, ~93ms per frame
+            hop_length: Number of samples between successive frames--this creates overlapping windows, 512 samples = ~23ms
+            freq_min: Minimum frequency to consider (Hz) -- human hearing above 20Hz
+            freq_max: Maximum frequency to consider (Hz) -- Music information is mostly below 8kHz
         """
         self.sample_rate = sample_rate
         self.n_fft = n_fft
@@ -41,17 +41,18 @@ class AudioFingerprinter:
         self.freq_max = freq_max
         
         # Peak finding parameters
-        self.peak_neighborhood_size = 10  # Look for peaks in this radius
-        self.min_amplitude = 10  # Minimum amplitude to consider a peak
+        self.peak_neighborhood_size = 20  # When looking for peaks check 20x20 pixel area
+        self.min_amplitude = None  # We'll calculate adaptively
         
         # Fingerprint parameters
-        self.fan_value = 5  # How many peaks to pair with each peak
-        self.target_zone_width = 50  # Time frames to look ahead
-        self.target_zone_start = 10  # Where target zone starts
+        self.fan_value = 5 # Each peak pairs with next 5 peaks
+        self.target_zone_width = 50 # Look ahead 50 time frames
+        self.target_zone_start = 10 # Start pairing from 10 frames ahead to avoid close peaks
     
     def load_audio(self, filepath: str) -> np.ndarray:
         """
         Load audio file and convert to mono at our sample rate.
+        Returns audio time series as numpy array.
         
         Args:
             filepath: Path to audio file (mp3, wav, etc.)
@@ -86,9 +87,22 @@ class AudioFingerprinter:
         stft = librosa.stft(audio, 
                            n_fft=self.n_fft, 
                            hop_length=self.hop_length)
+        # What this does:
+        # 1. Takes the audio wave (time-domain)
+        # 2. Splits it into overlapping windows of n_fft(2048) samples
+        # 3. Applies Fourier Transform to each window
+        # 4. Converts time domain -> frequency domain
+
+        # Result Shape:
+        # If audio is 66,150 samples (3 seconds at 22,050Hz)
+        # Windows: 66,150/512 ≈ 129 frames
+        # Frequencies: 2048/2 + 1 = 1025 frequency bins
+        # So stft shape = (1025, 129)
         
-        # Convert complex numbers to magnitude (amplitude)
+        # STFT returns complex numbers -> Convert complex numbers to magnitude (amplitude)
         spectrogram = np.abs(stft)
+        # Why decibels? -> Human hearing is logarithmic
+        # This results in Maximum amplitude of 0 dB and everything else as negative values (-80 dB to 0 dB)
         
         # Convert amplitude to decibels (logarithmic scale)
         # This matches how humans perceive loudness
@@ -98,36 +112,39 @@ class AudioFingerprinter:
     
     def find_peaks(self, spectrogram: np.ndarray) -> List[Tuple[int, int]]:
         """
-        Find peaks (local maxima) in the spectrogram.
-        
-        Peaks represent distinctive frequency-time points in the audio.
-        These are the "landmarks" we'll use for fingerprinting.
-        
-        Args:
-            spectrogram: 2D spectrogram array
-            
-        Returns:
-            List of (time_index, frequency_index) tuples
+        Find peaks (local maxima) in the spectrogram using adaptive threshold.
         """
-        # Create a structure for finding local maxima
-        # A point is a peak if it's the maximum in its neighborhood
-        struct = generate_binary_structure(2, 1)
-        neighborhood = binary_erosion(
-            maximum_filter(spectrogram, footprint=struct) == spectrogram,
-            structure=struct
-        )
         
-        # Get coordinates where peaks are located
-        peaks = np.where(
-            (neighborhood) & 
-            (spectrogram > self.min_amplitude)
-        )
+        # Dilate the structure to increase neighborhood size
+        neighborhood_size = self.peak_neighborhood_size
+        neighborhood = maximum_filter(spectrogram, size=neighborhood_size) # For every pixel, look at a 20x20 neighborhood and find the max value
+        
+        # A pixel is a peak if its value equals the local maximum (meaning it IS the maximum).
+        is_peak = (spectrogram == neighborhood)
+        
+        # Remove peaks at the border - edges can create false peaks due to incomplete windows
+        is_peak[0] = False
+        is_peak[-1] = False
+        is_peak[:, 0] = False
+        is_peak[:, -1] = False
+        
+        # Use adaptive threshold: median + standard deviation
+        threshold = np.median(spectrogram) + np.std(spectrogram) * 0.5
+        
+        # Alternative: Use percentile-based threshold
+        # threshold = np.percentile(spectrogram, 90)
+        
+        # Get coordinates of peaks above threshold
+        peaks = np.where(is_peak & (spectrogram > threshold))
         
         # Convert to list of (time, frequency) tuples
-        peak_list = list(zip(peaks[1], peaks[0]))  # Note: reversed for (time, freq)
+        peak_list = list(zip(peaks[1], peaks[0]))
         
         # Sort by time
         peak_list.sort(key=lambda x: x[0])
+        
+        print(f"Debug: Threshold = {threshold:.2f} dB")
+        print(f"Debug: Spectrogram range = [{spectrogram.min():.2f}, {spectrogram.max():.2f}] dB")
         
         return peak_list
     
@@ -223,3 +240,11 @@ class AudioFingerprinter:
     def frames_to_time(self, frames: int) -> float:
         """Convert frame index to time in seconds."""
         return frames * self.hop_length / self.sample_rate
+    
+    def debug_spectrogram(self, spectrogram: np.ndarray) -> None:
+        """Print debug info about spectrogram for troubleshooting."""
+        print(f"Spectrogram shape: {spectrogram.shape}")
+        print(f"Min value: {spectrogram.min():.2f} dB")
+        print(f"Max value: {spectrogram.max():.2f} dB")
+        print(f"Mean value: {spectrogram.mean():.2f} dB")
+        print(f"Values > {self.min_amplitude} dB: {np.sum(spectrogram > self.min_amplitude)} out of {spectrogram.size}")
