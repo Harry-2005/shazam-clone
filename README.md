@@ -1,25 +1,3 @@
-# shazam-clone
-
-This repository is a scaffold and working prototype for a Shazam-like application (backend + web + mobile). Below is a concise, step-by-step log of what has been created and changed so far, plus commands to reproduce and next recommended steps.
-
-**Current Structure**
-- **backend**: Python backend service (FastAPI-ready)
-  - [backend/app](backend/app): application code
-  - [backend/tests](backend/tests): test scripts
-  - [backend/.env](backend/.env): environment variables
-  - [backend/requirements.txt](backend/requirements.txt): installed packages
-  - [backend/.venv](backend/.venv): local Python virtual environment (created locally)
-- **frontend-web**: web frontend scaffold
-- **frontend-mobile**: mobile frontend scaffold
-- **sample-songs**: folder for test audio files
-
-**What I implemented / changed (chronological)**
-- **Scaffold & files:** created the directory tree and placeholder files for backend, frontends, sample assets.
-- **Python venv:** created `backend/.venv` and activated it in the working terminal.
-- **Installed packages:** installed audio + web + DB packages into the venv and wrote versions to [backend/requirements.txt](backend/requirements.txt). Key packages: `librosa`, `numpy`, `scipy`, `fastapi`, `uvicorn`, `python-multipart`, `psycopg2-binary`, `sqlalchemy`, `pydantic`, `python-dotenv`.
-- **Fingerprint engine:** implemented `AudioFingerprinter` in [backend/app/fingerprint.py](backend/app/fingerprint.py). Features:
-  - Audio loading via `librosa`
-  - Spectrogram computation (STFT)
   # shazam-clone
 
   This repository is a scaffold and working prototype for a Shazam-like application (backend + web + mobile). Below is a concise, step-by-step log of what has been created and changed so far, plus commands to reproduce and next recommended steps.
