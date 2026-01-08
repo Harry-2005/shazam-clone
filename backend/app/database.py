@@ -117,7 +117,7 @@ class DatabaseManager:
             fingerprint_objects = [
                 Fingerprint(
                     hash_value=fp_hash,
-                    time_offset=time_offset,
+                    time_offset=int(time_offset),
                     song_id=song.id
                 )
                 for fp_hash, time_offset in fingerprints

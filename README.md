@@ -72,36 +72,83 @@ This repository is a scaffold and working prototype for a Shazam-like applicatio
   python generate_test_audio.py
   ```
   - Run the functional fingerprint test script:
+
+  ## Structure
+  - [backend](backend): Python backend service (FastAPI-ready)
+    - [backend/app](backend/app): application code
+    - [backend/tests](backend/tests): test scripts
+    - [backend/requirements.txt](backend/requirements.txt): pinned dependencies
+    - [backend/.venv](backend/.venv): local Python virtual environment (created locally)
+  - [frontend-web](frontend-web)
+  - [frontend-mobile](frontend-mobile)
+  - [sample-songs](sample-songs): test audio files
+
+  ## Quick setup (backend)
+  1. Open PowerShell and go to the backend folder:
   ```powershell
-  python tests/test_fingerprint.py
+  Set-Location D:\Project\shazam-clone\backend
+  ```
+  2. Activate the existing venv (or use the venv python directly):
+  ```powershell
+  .# Activate (PowerShell)
+  .\.venv\Scripts\Activate.ps1
+  # or run commands using the venv python explicitly:
+  .venv\Scripts\python -m pip install -r requirements.txt
+  ```
+  3. Install / reinstall requirements (if needed):
+  ```powershell
+  .venv\Scripts\python -m pip install --upgrade pip
+  .venv\Scripts\python -m pip install -r requirements.txt
+  ```
+  4. Verify `SQLAlchemy` is available:
+  ```powershell
+  .venv\Scripts\python -c "import sqlalchemy; print(sqlalchemy.__version__)"
   ```
 
-  **PostgreSQL status**
-  - I detected a running PostgreSQL service named `postgresql-x64-18` on the machine. The default `.env` points to `shazam_clone` on `localhost:5432`.
-
-  To create the database and tables (using the `.env` DATABASE_URL):
+  ## Running tests
+  - Important: run tests using the backend venv Python and from `backend/tests` so the `app` package imports correctly.
   ```powershell
-  # from backend folder, with venv activated
-  python - <<'PY'
-  from app.database import DatabaseManager
-  # This will create tables if the database exists and connection works
-  db = DatabaseManager()
-  print('Connected, tables created (if DB exists)')
-  PY
+  Set-Location D:\Project\shazam-clone\backend\tests
+  D:\Project\shazam-clone\backend\.venv\Scripts\python test_database.py
+  ```
+  - Notes:
+    - `tests/test_database.py` expects a test audio file at `sample-songs/test_song.mp3` (relative to repository root). Provide one or generate a synthetic test file.
+    - The test is an integration-style script (prints diagnostic output). For automated CI, convert to pytest-style assertions or mock external dependencies.
+
+  ## Database
+  - The backend uses SQLAlchemy with the database URL from `backend/.env` (`DATABASE_URL`). Example:
+  ```
+  DATABASE_URL=postgresql://postgres:changeme@localhost:5432/shazam_clone
+  ```
+  - For quick local testing you can use SQLite instead (no Postgres required):
+  ```powershell
+  setx DATABASE_URL "sqlite:///./test.db"
   ```
 
-  If the database `shazam_clone` does not exist yet, create it using `psql` or PowerShell (run as user with privileges):
-  ```powershell
-  # Create database (use your postgres user/password as needed)
-  psql -U postgres -c "CREATE DATABASE shazam_clone;"
+  ### Sequences / IDs
+  - PostgreSQL sequences continue incrementing across inserts/deletes and failed transactions. If you see inserted rows with `id > 1` despite an empty table, that's expected.
+  - To reset IDs in tests or dev DB (Postgres):
+  ```sql
+  TRUNCATE songs RESTART IDENTITY CASCADE;
+  -- or to set sequence to max(id):
+  SELECT setval(pg_get_serial_sequence('songs','id'), COALESCE((SELECT MAX(id) FROM songs), 0));
   ```
 
-  **Notes, known issues & fixes applied**
-  - Peak detection originally returned zero peaks because the dB threshold was too high and peak logic was strict. I updated `find_peaks()` to use an adaptive threshold (median + fraction of std dev) and increased the neighborhood size. See [backend/app/fingerprint.py](backend/app/fingerprint.py).
-  - Fixed a syntax error that occurred during an earlier edit of `fingerprint.py`.
-  - Reconciled `models.py` and `database.py` by renaming `hash` → `hash_value` and updating all database code to use the new column.
-  - Replaced `session.bulk_save_objects(...)` with `session.add_all(...)` to ensure model defaults (`created_at`) are applied.
-  - Optimized fingerprint lookups to a single DB query using `IN (...)` instead of one query per incoming fingerprint.
-  - Replaced Unicode characters in the test script with ASCII-safe markers to avoid PowerShell encoding issues.
+  ## Recent fixes and notes
+  - Reinstalled pinned requirements into `backend/.venv`.
+  - Fixed psycopg2 insertion error caused by `numpy.int64` time offsets: `app/database.py` now casts fingerprint offsets to `int` before inserting.
+  - Added guidance to run tests using the venv Python so imports like `app` and packages such as `SQLAlchemy` resolve correctly.
 
-— End of change log —
+  ## Troubleshooting
+  - No module named 'sqlalchemy': activate the venv or invoke `.venv\Scripts\python`.
+  - No module named 'app': run tests from `backend/tests` or set `PYTHONPATH` to include `backend`, or install the package in editable mode (`pip install -e .`) if you create packaging files.
+  - Database connection errors: ensure `DATABASE_URL` points to a running Postgres or switch to SQLite for quick tests.
+
+  ## Log Notes
+
+  - 2026-01-08: Reinstalled pinned requirements into `backend/.venv` (force-reinstall). Verified `SQLAlchemy` installed.
+  - 2026-01-08: Fixed insertion error caused by `numpy.int64` time offsets by casting offsets to `int` in `app/database.py`.
+  - 2026-01-08: Confirmed tests must be run using the backend venv Python and from `backend/tests` so the `app` package imports correctly; guidance added earlier.
+  - 2026-01-08: Observed PostgreSQL sequence behavior — empty tables can still produce non-1 autoincrement IDs; added `TRUNCATE ... RESTART IDENTITY` guidance.
+
+  — End of README
