@@ -130,8 +130,15 @@ async def identify_song(
             tmp_path = tmp.name
         
         try:
+            
+            print(f"\n{'='*60}")
+            print(f"Identifying song from: {file.filename}")
+            print(f"{'='*60}")
+            
             # Generate fingerprints from recording
             query_fingerprints = fingerprinter.fingerprint_file(tmp_path)
+            
+            print(f"Generated {len(query_fingerprints)} query fingerprints")
             
             if not query_fingerprints:
                 raise HTTPException(
@@ -142,19 +149,35 @@ async def identify_song(
             # Find matches
             match_result = db_manager.find_matches(query_fingerprints)
             
-            if match_result:
-                # Calculate confidence percentage
-                confidence_pct = (match_result['confidence'] / 
-                                match_result['total_query_prints']) * 100
+            print(f"Match result: {match_result}")
+            print(f"{'='*60}\n")
+            
+            if match_result and match_result.get('confidence', 0) > 0:
+                # Calculate confidence percentage (avoid division by zero)
+                total_prints = match_result.get('total_query_prints', 1)
+                confidence_pct = (match_result['confidence'] / total_prints) * 100 if total_prints > 0 else 0
+                
+                 # Get full song details from database to ensure accuracy
+                song = db_manager.get_song(match_result['song_id'])
+                
+                if not song:
+                    print(f"ERROR: Song {match_result['song_id']} not found!")
+                    return MatchResult(
+                        matched=False,
+                        song=None,
+                        confidence=0,
+                        confidence_percentage=0.0
+                    )
+                
                 
                 return MatchResult(
                     matched=True,
                     song=SongResponse(
-                        id=match_result['song_id'],
-                        title=match_result['title'],
-                        artist=match_result['artist'],
-                        album=match_result['album'],
-                        duration=None  # Not needed for match result
+                        id=song.id,
+                        title=song.title,
+                        artist=song.artist,
+                        album=song.album,
+                        duration= song.duration  
                     ),
                     confidence=match_result['confidence'],
                     confidence_percentage=round(confidence_pct, 2)
@@ -173,6 +196,9 @@ async def identify_song(
                 os.remove(tmp_path)
     
     except Exception as e:
+        print(f"ERROR in identify_song: {e}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 

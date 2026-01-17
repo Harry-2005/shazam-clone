@@ -190,6 +190,10 @@ class DatabaseManager:
             db_fingerprints = session.query(Fingerprint).filter(
                 Fingerprint.hash_value.in_(query_hashes)
             ).all()
+            
+            # Debug: Check if we found any matches
+            print(f"Debug: Query fingerprints: {len(query_fingerprints)}")
+            print(f"Debug: DB fingerprints found: {len(db_fingerprints)}")
 
             # Build a map from hash to list of db fingerprints for quick access
             hash_map = {}
@@ -221,6 +225,9 @@ class DatabaseManager:
 
                     matches[song_id][time_delta] = matches[song_id].get(time_delta, 0) + 1
             
+            # Debug: Print matches
+            print(f"Debug: Matches found: {matches}")
+            
             if not matches:
                 return None
             
@@ -235,12 +242,19 @@ class DatabaseManager:
                 if max_count > best_score:
                     best_score = max_count
                     best_match = song_id
+                    
+            print(f"Debug: Best match - Song ID: {best_match}, Score: {best_score}")
             
-            # Get song details
-            if best_match:
+            # Get song details (only if we found a valid match with score > 0)
+            if best_match and best_score > 0:
                 song = session.query(Song).filter(Song.id == best_match).first()
                 
-                return {
+                if not song:
+                    print(f"Debug: ERROR - Song {best_match} not found in database!")
+                    return None
+                
+                
+                result = {
                     "song_id": song.id,
                     "title": song.title,
                     "artist": song.artist,
@@ -248,7 +262,8 @@ class DatabaseManager:
                     "confidence": best_score,  # Number of matching fingerprints
                     "total_query_prints": len(query_fingerprints)
                 }
-            
+                print(f"Debug: Returning result: {result}")
+                return result
             return None
             
         finally:

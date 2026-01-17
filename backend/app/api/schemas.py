@@ -20,6 +20,10 @@ class SongCreate(SongBase):
 class SongResponse(SongBase):
     """Schema for song in API responses."""
     id: int = Field(..., description="Unique song ID")
+    title: str = Field(..., description="Song title")
+    artist: str = Field(..., description="Artist name")
+    album: Optional[str] = Field(None, description="Album name")
+    duration: Optional[float] = Field(None, description="Duration in seconds")
     
     class Config:
         # Allows creating from ORM models (SQLAlchemy)
