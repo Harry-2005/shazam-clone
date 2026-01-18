@@ -33,6 +33,11 @@
     - Creates tables with `Base.metadata.create_all()`
     - `add_song()` now inserts fingerprints via `session.add_all(...)` so defaults like `created_at` apply
     - `find_matches()` optimized to fetch all matching hashes in a single DB query, then groups results in memory for scoring
+  - **FastAPI API layer:** wired [backend/app/main.py](backend/app/main.py) and [backend/app/api/routes.py](backend/app/api/routes.py) with `/api/v1` router, upload/identify/song CRUD/stats/health endpoints, CORS enabled, temp-file handling, and Pydantic schemas for request/response validation.
+  - **API correctness fixes:** adjusted identification/upload flows to return structured Pydantic responses, cleaned temp file handling, included confidence percentages, and ensured song lookups return full metadata—this resolved the incorrect/empty outputs we were seeing from `/identify` and song endpoints.
+  - **Web API client:** added Axios service [frontend-web/src/services/api.js](frontend-web/src/services/api.js) covering song upload/list/detail/delete, identify, stats, and health against `http://localhost:8000/api/v1`.
+  - **Web UI scaffold:** set up React Router navigation in [frontend-web/src/App.js](frontend-web/src/App.js); built Home page (stats + feature cards), Identify flow (recorder stub + identifying spinner + result display), and SongList component to browse/delete songs from the API; Upload/Library/file upload/recorder components are scaffolded for future work.
+  - **Frontend dependency:** installed `@fortawesome/fontawesome-free` in `frontend-web` for icon support.
 
   **Environment & run commands**
   - Create and activate venv (from repo root):
@@ -128,5 +133,8 @@
   - 2026-01-08: Fixed insertion error caused by `numpy.int64` time offsets by casting offsets to `int` in `app/database.py`.
   - 2026-01-08: Confirmed tests must be run using the backend venv Python and from `backend/tests` so the `app` package imports correctly; guidance added earlier.
   - 2026-01-08: Observed PostgreSQL sequence behavior — empty tables can still produce non-1 autoincrement IDs; added `TRUNCATE ... RESTART IDENTITY` guidance.
+  - 2026-01-18: Added FastAPI router + endpoints (upload/identify/songs/stats/health) with CORS and schema validation; ensured `/api/v1` prefix and health root wiring.
+  - 2026-01-18: Fixed API responses and temp-file handling so `/identify` returns full song metadata with confidence metrics and song endpoints stop returning empty/incorrect payloads.
+  - 2026-01-18: Created web API client service, React Router shell, Home/Identify pages, SongList component hooked to the API, and installed `@fortawesome/fontawesome-free` for UI icons.
 
   — End of README

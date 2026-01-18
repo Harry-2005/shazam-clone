@@ -1,0 +1,92 @@
+.song-list {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.song-list h2 {
+  color: #333;
+  margin-bottom: 24px;
+}
+
+.songs-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 20px;
+}
+
+.song-card {
+  background: white;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  transition: transform 0.2s, box-shadow 0.2s;
+  position: relative;
+}
+
+.song-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+}
+
+.song-icon {
+  font-size: 48px;
+  text-align: center;
+  margin-bottom: 16px;
+}
+
+.song-details h3 {
+  margin: 0 0 8px 0;
+  color: #007bff;
+  font-size: 20px;
+}
+
+.song-details .artist {
+  color: #666;
+  font-size: 16px;
+  margin: 4px 0;
+}
+
+.song-details .album {
+  color: #999;
+  font-size: 14px;
+  font-style: italic;
+  margin: 4px 0;
+}
+
+.song-details .duration {
+  color: #999;
+  font-size: 14px;
+  margin-top: 8px;
+}
+
+.btn-delete {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: none;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  opacity: 0.6;
+  transition: opacity 0.2s;
+}
+
+.btn-delete:hover {
+  opacity: 1;
+}
+
+.loading, .error, .empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: #666;
+}
+
+.error {
+  color: #dc3545;
+}
+
+.empty-state h3 {
+  color: #333;
+  margin-bottom: 8px;
+}

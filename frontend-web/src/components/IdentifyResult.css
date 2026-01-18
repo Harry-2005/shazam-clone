@@ -1,0 +1,105 @@
+.identify-result {
+  max-width: 600px;
+  margin: 40px auto;
+  padding: 32px;
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.result-success, .result-no-match {
+  text-align: center;
+}
+
+.success-icon, .no-match-icon {
+  font-size: 64px;
+  margin-bottom: 16px;
+}
+
+.identify-result h2 {
+  color: #333;
+  margin-bottom: 24px;
+}
+
+.song-info {
+  margin: 32px 0;
+  padding: 24px;
+  background: #f8f9fa;
+  border-radius: 12px;
+}
+
+.song-info h3 {
+  font-size: 28px;
+  margin: 0 0 8px 0;
+  color: #007bff;
+}
+
+.song-info .artist {
+  font-size: 20px;
+  color: #666;
+  margin: 8px 0;
+}
+
+.song-info .album {
+  font-size: 16px;
+  color: #999;
+  font-style: italic;
+}
+
+.confidence-bar {
+  margin: 32px 0;
+}
+
+.confidence-label {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: #333;
+}
+
+.progress-bar {
+  height: 24px;
+  background: #e9ecef;
+  border-radius: 12px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #28a745, #20c997);
+  transition: width 0.5s ease;
+}
+
+.confidence-details {
+  font-size: 14px;
+  color: #666;
+}
+
+.result-no-match ul {
+  text-align: left;
+  max-width: 400px;
+  margin: 24px auto;
+  color: #666;
+}
+
+.result-no-match ul li {
+  margin: 8px 0;
+}
+
+.btn-primary {
+  background: #007bff;
+  color: white;
+  padding: 12px 32px;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 24px;
+  transition: background 0.3s;
+}
+
+.btn-primary:hover {
+  background: #0056b3;
+}
