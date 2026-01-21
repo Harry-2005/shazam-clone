@@ -41,21 +41,22 @@ class AudioFingerprinter:
         self.freq_max = freq_max
         
         # Peak finding parameters
-        self.peak_neighborhood_size = 20  # When looking for peaks check 20x20 pixel area
+        self.peak_neighborhood_size = 10  # When looking for peaks check 10x10 pixel area (smaller = more peaks)
         self.min_amplitude = None  # We'll calculate adaptively
         
         # Fingerprint parameters
-        self.fan_value = 5 # Each peak pairs with next 5 peaks
-        self.target_zone_width = 50 # Look ahead 50 time frames
-        self.target_zone_start = 10 # Start pairing from 10 frames ahead to avoid close peaks
+        self.fan_value = 5 # Each peak pairs with next 5 peaks (reduced from 30 - was generating too many)
+        self.target_zone_width = 75 # Look ahead 75 time frames (reduced from 250)
+        self.target_zone_start = 1 # Start pairing from 1 frame ahead (capture nearby peaks)
     
-    def load_audio(self, filepath: str) -> np.ndarray:
+    def load_audio(self, filepath: str, preprocess: bool = False) -> np.ndarray:
         """
         Load audio file and convert to mono at our sample rate.
         Returns audio time series as numpy array.
         
         Args:
             filepath: Path to audio file (mp3, wav, etc.)
+            preprocess: If True, apply trim silence and normalization (slower but better matching)
             
         Returns:
             Audio time series as numpy array
@@ -65,6 +66,15 @@ class AudioFingerprinter:
         # - Resamples to target sample rate
         # - Returns float array normalized to [-1, 1]
         audio, _ = librosa.load(filepath, sr=self.sample_rate, mono=True)
+        
+        if preprocess:
+            # Preprocessing steps for better matching (optional, slower)
+            # 1. Trim silence from beginning and end
+            audio, _ = librosa.effects.trim(audio, top_db=20)
+            
+            # 2. Normalize audio to consistent volume level
+            audio = librosa.util.normalize(audio)
+        
         return audio
     
     def compute_spectrogram(self, audio: np.ndarray) -> np.ndarray:
@@ -117,10 +127,10 @@ class AudioFingerprinter:
         
         # Dilate the structure to increase neighborhood size
         neighborhood_size = self.peak_neighborhood_size
-        neighborhood = maximum_filter(spectrogram, size=neighborhood_size) # For every pixel, look at a 20x20 neighborhood and find the max value
+        local_max = maximum_filter(spectrogram, size=neighborhood_size) # For every pixel, look at a 20x20 neighborhood and find the max value
         
         # A pixel is a peak if its value equals the local maximum (meaning it IS the maximum).
-        is_peak = (spectrogram == neighborhood)
+        is_peak = (spectrogram == local_max) 
         
         # Remove peaks at the border - edges can create false peaks due to incomplete windows
         is_peak[0] = False
@@ -128,14 +138,11 @@ class AudioFingerprinter:
         is_peak[:, 0] = False
         is_peak[:, -1] = False
         
-        # Use adaptive threshold: median + standard deviation
-        threshold = np.median(spectrogram) + np.std(spectrogram) * 0.5
-        
-        # Alternative: Use percentile-based threshold
-        # threshold = np.percentile(spectrogram, 90)
+        # Use percentile-based threshold for consistency (top 10% of values - very permissive)
+        threshold = np.percentile(spectrogram, 90)
         
         # Get coordinates of peaks above threshold
-        peaks = np.where(is_peak & (spectrogram > threshold))
+        peaks = np.where(is_peak & (spectrogram >= threshold))
         
         # Convert to list of (time, frequency) tuples
         peak_list = list(zip(peaks[1], peaks[0]))
@@ -145,6 +152,7 @@ class AudioFingerprinter:
         
         print(f"Debug: Threshold = {threshold:.2f} dB")
         print(f"Debug: Spectrogram range = [{spectrogram.min():.2f}, {spectrogram.max():.2f}] dB")
+        print(f"Debug: Found {len(peak_list)} peaks")
         
         return peak_list
     
@@ -217,18 +225,19 @@ class AudioFingerprinter:
         
         return hashes
     
-    def fingerprint_file(self, filepath: str) -> List[Tuple[str, int]]:
+    def fingerprint_file(self, filepath: str, preprocess: bool = False) -> List[Tuple[str, int]]:
         """
         Complete fingerprinting pipeline for audio file.
         
         Args:
             filepath: Path to audio file
+            preprocess: If True, apply trim silence and normalization (slower but better matching)
             
         Returns:
             List of (hash, time_offset) tuples
         """
-        # Load audio
-        audio = self.load_audio(filepath)
+        # Load audio (with optional preprocessing)
+        audio = self.load_audio(filepath, preprocess=preprocess)
         
         # Fingerprint it
         return self.fingerprint_audio(audio)

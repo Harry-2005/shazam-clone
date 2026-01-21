@@ -98,6 +98,49 @@
     - `tests/test_database.py` expects a test audio file at `sample-songs/test_song.mp3` (relative to repository root). Provide one or generate a synthetic test file.
     - The test is an integration-style script (prints diagnostic output). For automated CI, convert to pytest-style assertions or mock external dependencies.
 
+  ## Populating Database with Spotify Charts
+
+  The project includes a script to fetch song metadata from Spotify charts and optionally download 30-second preview clips.
+
+  ### Setup Spotify API Credentials
+  1. Go to https://developer.spotify.com/dashboard
+  2. Create a Spotify app to get your Client ID and Client Secret
+  3. Add to your `.env` file:
+  ```env
+  SPOTIFY_CLIENT_ID=your_client_id_here
+  SPOTIFY_CLIENT_SECRET=your_client_secret_here
+  ```
+
+  ### Fetch Song Lists
+  ```powershell
+  # Install spotipy if not already installed
+  pip install spotipy
+
+  # Fetch song metadata (Top 200 Global/India + Top 50 from 20+ countries)
+  python scripts/get_spotify_recommendations.py fetch
+  ```
+  This creates `spotify_songs_list.json` and `spotify_songs_list.csv` with ~1000+ songs.
+
+  ### Download Preview Clips (Optional)
+  ```powershell
+  # Download 30-second preview clips (if available)
+  python scripts/get_spotify_recommendations.py download
+  ```
+  Preview clips are saved to `spotify_previews/` directory.
+
+  ### Bulk Upload to Database
+  ```powershell
+  # Upload all audio files from a directory
+  cd backend
+  python scripts/reindex_databse.py --audio-dir ../spotify_previews --force
+  ```
+
+  **Important Notes:**
+  - Spotify API only provides 30-second preview clips (not full songs)
+  - Not all songs have preview URLs available
+  - For full songs, you'll need to source audio from legal services
+  - Preview clips are useful for testing but may not match well with full recordings
+
   ## Database
   - The backend uses SQLAlchemy with the database URL from `backend/.env` (`DATABASE_URL`). Example:
   ```

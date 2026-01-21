@@ -135,8 +135,9 @@ async def identify_song(
             print(f"Identifying song from: {file.filename}")
             print(f"{'='*60}")
             
-            # Generate fingerprints from recording
-            query_fingerprints = fingerprinter.fingerprint_file(tmp_path)
+            # Generate fingerprints from recording with preprocessing for better matching
+            # Preprocessing: trim silence and normalize audio
+            query_fingerprints = fingerprinter.fingerprint_file(tmp_path, preprocess=True)
             
             print(f"Generated {len(query_fingerprints)} query fingerprints")
             
@@ -153,9 +154,8 @@ async def identify_song(
             print(f"{'='*60}\n")
             
             if match_result and match_result.get('confidence', 0) > 0:
-                # Calculate confidence percentage (avoid division by zero)
-                total_prints = match_result.get('total_query_prints', 1)
-                confidence_pct = (match_result['confidence'] / total_prints) * 100 if total_prints > 0 else 0
+                # Use the corrected confidence percentage from database (already calculated properly)
+                # Don't recalculate - it was already done in find_matches()
                 
                  # Get full song details from database to ensure accuracy
                 song = db_manager.get_song(match_result['song_id'])
@@ -180,7 +180,7 @@ async def identify_song(
                         duration= song.duration  
                     ),
                     confidence=match_result['confidence'],
-                    confidence_percentage=round(confidence_pct, 2)
+                    confidence_percentage=match_result.get('confidence_percentage', 0.0)
                 )
             else:
                 return MatchResult(
