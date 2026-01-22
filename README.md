@@ -1,4 +1,4 @@
-  # shazam-clone
+  # TuneTrace
 
   This repository is a scaffold and working prototype for a Shazam-like application (backend + web + mobile). Below is a concise, step-by-step log of what has been created and changed so far, plus commands to reproduce and next recommended steps.
 
@@ -98,48 +98,119 @@
     - `tests/test_database.py` expects a test audio file at `sample-songs/test_song.mp3` (relative to repository root). Provide one or generate a synthetic test file.
     - The test is an integration-style script (prints diagnostic output). For automated CI, convert to pytest-style assertions or mock external dependencies.
 
-  ## Populating Database with Spotify Charts
+  ## Populating Database with Music Charts
 
-  The project includes a script to fetch song metadata from Spotify charts and optionally download 30-second preview clips.
+  The project includes a script to fetch song metadata from music charts and optionally download 30-second preview clips.
 
-  ### Setup Spotify API Credentials
-  1. Go to https://developer.spotify.com/dashboard
-  2. Create a Spotify app to get your Client ID and Client Secret
-  3. Add to your `.env` file:
-  ```env
-  SPOTIFY_CLIENT_ID=your_client_id_here
-  SPOTIFY_CLIENT_SECRET=your_client_secret_here
-  ```
+  ### Using Deezer API (Recommended - No Auth Required!)
+  
+  **Deezer API is the recommended option since Spotify API is currently down.**
+  
+  - ✅ No authentication/credentials needed
+  - ✅ 30-second preview clips available
+  - ✅ Charts from 15+ countries
+  - ✅ ~1200+ songs available
 
-  ### Fetch Song Lists
   ```powershell
-  # Install spotipy if not already installed
-  pip install spotipy
+  # Install required package
+  pip install requests
 
-  # Fetch song metadata (Top 200 Global/India + Top 50 from 20+ countries)
+  # Fetch song metadata (Top 200 Global/India + Top 50-100 from 15+ countries)
   python scripts/get_spotify_recommendations.py fetch
   ```
-  This creates `spotify_songs_list.json` and `spotify_songs_list.csv` with ~1000+ songs.
+  This creates `music_songs_list.json` and `music_songs_list.csv` with ~1200+ songs.
 
-  ### Download Preview Clips (Optional)
+  ### Download Preview Clips
   ```powershell
-  # Download 30-second preview clips (if available)
+  # Download 30-second preview clips
   python scripts/get_spotify_recommendations.py download
   ```
-  Preview clips are saved to `spotify_previews/` directory.
+  Preview clips are saved to `music_previews/` directory.
 
   ### Bulk Upload to Database
   ```powershell
   # Upload all audio files from a directory
   cd backend
-  python scripts/reindex_databse.py --audio-dir ../spotify_previews --force
+  python scripts/reindex_databse.py --audio-dir ../music_previews --force
+  ```
+
+  ### Alternative: Spotify API (When Available)
+  If Spotify API comes back online, you can use it by:
+  1. Get credentials from https://developer.spotify.com/dashboard
+  2. Add to `.env`:
+  ```env
+  SPOTIFY_CLIENT_ID=your_client_id_here
+  SPOTIFY_CLIENT_SECRET=your_client_secret_here
+  ```
+  3. Install: `pip install spotipy`
+  4. The script will auto-detect and use Spotify if configured
+
+  ### Using YouTube + yt-dlp (Recommended for Full Songs!)
+  
+  **Best option for full-length songs instead of 30-second previews.**
+  
+  - ✅ Full-length songs (not just previews)
+  - ✅ No authentication required
+  - ✅ Vast catalog (virtually any song on YouTube)
+  - ✅ High quality audio extraction
+  - ✅ Works with playlists
+
+  ```powershell
+  # Install yt-dlp
+  pip install yt-dlp
+
+  # Download from a YouTube playlist
+  python backend/scripts/download_youtube_songs.py playlist "https://youtube.com/playlist?list=..." 100
+
+  # Download from chart JSON (after running Deezer fetch)
+  python backend/scripts/download_youtube_songs.py json 50
+
+  # Search and download a specific song
+  python backend/scripts/download_youtube_songs.py search "Artist - Song Title"
+
+  # Interactive mode
+  python backend/scripts/download_youtube_songs.py
+  ```
+
+  Songs are saved to `youtube_songs/` directory.
+
+  ### Renaming Downloaded Files
+  
+  To standardize filenames to "Title by Artist" format:
+  
+  ```powershell
+  # Dry run (preview changes)
+  python backend/scripts/download_youtube_songs.py rename youtube_songs
+
+  # Execute rename
+  python backend/scripts/download_youtube_songs.py rename youtube_songs --execute
   ```
 
   **Important Notes:**
-  - Spotify API only provides 30-second preview clips (not full songs)
-  - Not all songs have preview URLs available
-  - For full songs, you'll need to source audio from legal services
+  - Deezer/Spotify: 30-second preview clips only
+  - YouTube: Full songs, better for matching accuracy
   - Preview clips are useful for testing but may not match well with full recordings
+  - For full songs from Deezer/Spotify, you'll need to source audio from legal services you subscribe to
+
+  ## Database Management
+
+  ### Clear Database
+  
+  To delete all songs and fingerprints:
+  
+  ```powershell
+  cd backend
+  python scripts/clear_database.py
+  ```
+
+  ### Reindex Database
+  
+  Re-fingerprint all songs with current parameters:
+  
+  ```powershell
+  cd backend
+  python scripts/reindex_databse.py --audio-dir ../youtube_songs --force
+  ```
 
   ## Database
   - The backend uses SQLAlchemy with the database URL from `backend/.env` (`DATABASE_URL`). Example:
@@ -164,6 +235,75 @@
   - Reinstalled pinned requirements into `backend/.venv`.
   - Fixed psycopg2 insertion error caused by `numpy.int64` time offsets: `app/database.py` now casts fingerprint offsets to `int` before inserting.
   - Added guidance to run tests using the venv Python so imports like `app` and packages such as `SQLAlchemy` resolve correctly.
+  - **Performance optimizations:**
+    - Switched from `session.add_all()` to `bulk_insert_mappings()` for 10-50x faster fingerprint insertion
+    - Removed eager loading (`joinedload`) from `list_songs()` and `get_song()` to dramatically improve query performance
+    - Added batching for fingerprint matching queries (1000 hashes per batch)
+  - **Fingerprinting parameter tuning:**
+    - Reduced `fan_value` from 30 to 5 (was generating 1.3M fingerprints per song)
+    - Reduced `target_zone_width` from 250 to 75
+    - Reduced `peak_neighborhood_size` to 10 for better peak detection
+    - Adjusted peak threshold to 90th percentile (from 98th) for more peaks
+    - Target: 30-50k fingerprints per 3-minute song instead of 1.3M
+  - **Matching algorithm improvements:**
+    - **Threshold progression:** Started at MIN=15 → 10 → 8 → 40 → final dynamic 25% baseline
+    - **False positive handling:** Observed false positives at 1-25 matches, true matches at 150+
+    - **Dynamic thresholds:** 25% of expected good match (37-38 fingerprints minimum)
+    - **Confidence calculation evolution:**
+      - Initial: Direct match count
+      - V2: (matched / query_fingerprints) * 100 - caused issues with clip length
+      - V3: (matched / 15) * 100 - too low baseline
+      - Final: (matched / 150) * 100 - aligns with true match range
+    - Confidence baseline: 150 matches = 100% confidence
+    - Reduces false positives (1-25 range) while catching true matches (150+ range)
+  - **Audio preprocessing (optional):**
+    - Added optional preprocessing with `preprocess=True` parameter
+    - **Trim silence:** Uses `librosa.effects.trim(audio, top_db=20)` to remove quiet sections
+    - **Normalize audio:** Uses `librosa.util.normalize(audio)` for consistent volume
+    - **Implementation strategy:** Applied ONLY during identification (recordings), NOT during upload
+    - **Reasoning:** Uploads stay fast (no preprocessing overhead), recordings get better matching
+    - **Performance impact:** Preprocessing adds time but improves accuracy for noisy recordings
+  - **Database fixes:**
+    - Fixed DetachedInstanceError by adding eager loading initially
+    - Later removed eager loading for performance (fingerprints not needed for listing)
+    - Balanced between session management and query performance
+    - Added optional trim silence and normalization for recordings during identification
+    - Preprocessing NOT applied during upload (maintains fast upload speed)
+    - Applied only to user recordings for better matching accuracy
+
+  ## Frontend (TuneTrace)
+  
+  The web frontend has been branded as **TuneTrace** (formerly "Shazam Clone").
+  
+  ### Running Frontend
+  ```powershell
+  cd frontend-web
+  npm install
+  npm run dev -- --host 0.0.0.0 --port 5173
+  ```
+  
+  Access at: http://localhost:5173/
+  
+  ### Features
+  - Audio recording and song identification
+  - Song library management (upload, browse, delete)
+  - Real-time confidence percentage display
+  - Responsive design with React Router navigation
+
+  ## Running Both Servers
+  
+  ### Backend (FastAPI)
+  ```powershell
+  cd backend
+  $env:PYTHONPATH = 'D:\Project\shazam-clone\backend'
+  python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+  ```
+  
+  ### Frontend (React + Vite)
+  ```powershell
+  cd frontend-web
+  npm run dev -- --host 0.0.0.0 --port 5173
+  ```
 
   ## Troubleshooting
   - No module named 'sqlalchemy': activate the venv or invoke `.venv\Scripts\python`.
@@ -179,5 +319,53 @@
   - 2026-01-18: Added FastAPI router + endpoints (upload/identify/songs/stats/health) with CORS and schema validation; ensured `/api/v1` prefix and health root wiring.
   - 2026-01-18: Fixed API responses and temp-file handling so `/identify` returns full song metadata with confidence metrics and song endpoints stop returning empty/incorrect payloads.
   - 2026-01-18: Created web API client service, React Router shell, Home/Identify pages, SongList component hooked to the API, and installed `@fortawesome/fontawesome-free` for UI icons.
+  - 2026-01-21: **Major performance optimizations:**
+    - Replaced `session.add_all()` with `bulk_insert_mappings()` for 10-50x faster fingerprint insertion
+    - Removed eager loading from `list_songs()` and `get_song()` - dramatically improved query speed
+    - Added batching for fingerprint matching queries (1000 hashes per batch) to handle millions of fingerprints
+  - 2026-01-21: **Fingerprinting parameter tuning:**
+    - Reduced `fan_value` from 30 to 5 and `target_zone_width` from 250 to 75
+    - Reduced fingerprint count from 1.3M per song to ~30-50k (sustainable scale)
+  - 2026-01-21: **Matching algorithm improvements:**
+    - Implemented dynamic thresholds: 25% of expected good match (37-38 minimum fingerprints)
+    - Set confidence baseline to 150 matches = 100% confidence
+    - Adjusted to reduce false positives (1-25 range) while catching true matches (150+ range)
+  - 2026-01-21: **Audio preprocessing implementation:**
+    - Added optional preprocessing (trim silence + normalize) for identification recordings
+    - Preprocessing NOT applied to uploads to maintain fast upload speed
+    - Creates better matching for noisy/variable recordings
+  - 2026-01-21: **Music source integration:**
+    - Added Deezer API support (no auth required, 30-second previews, 15+ countries)
+    - Created YouTube + yt-dlp integration for full-length song downloads
+    - Added download scripts with playlist support and search functionality
+    - Added file renaming script to standardize format ("Title by Artist")
+  - 2026-01-21: **Branding updates:**
+    - Renamed frontend from "Shazam Clone" to "TuneTrace"
+    - Updated copyright year to 2026
+  - 2026-01-21: **Database management tools:**
+    - Created `clear_database.py` script for full database reset
+    - Updated `reindex_databse.py` with CLI args and better error handling
+    - Added `.gitignore` entries for downloaded songs and chart data
+
+  ## Project Statistics (as of 2026-01-21)
+  
+  - **Backend**: FastAPI with SQLAlchemy ORM, PostgreSQL database
+  - **Frontend**: React with Vite, Axios for API calls
+  - **Audio Processing**: librosa, NumPy, scipy
+  - **Fingerprinting**: Peak-based spectral hashing with configurable parameters
+  - **Matching**: Time-delta alignment algorithm with dynamic thresholds
+  - **Performance**: ~30-50k fingerprints per 3-minute song, bulk insertion, batched queries
+  - **Music Sources**: Deezer API (charts), YouTube + yt-dlp (full songs), Spotify API (legacy)
+  - **Scripts**: Song download, renaming, database management, reindexing
+  - **Branding**: TuneTrace audio fingerprinting system
+
+  ## Next Steps
+  
+  **Upcoming Changes:**
+  - Database population with downloaded songs from YouTube playlists
+  - Bulk fingerprinting and upload of ~1000+ songs across multiple genres
+  - Testing and validation of matching accuracy with real-world song database
+  - Performance benchmarking with populated database
+  - Fine-tuning matching thresholds based on larger dataset
 
   — End of README

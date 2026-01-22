@@ -1,0 +1,13 @@
+{
+  "pid": 35544,
+  "index_name": "idx_fingerprints_time_offset",
+  "phase": "index validation: scanning table",
+  "tuples_total": 0,
+  "tuples_done": 0,
+  "blocks_total": 4759636,
+  "blocks_done": 3472911,
+  "partitions_total": 0,
+  "partitions_done": 0,
+  "duration": "0:26:10.690743",
+  "timestamp": "2026-01-22T14:25:33.459643"
+}

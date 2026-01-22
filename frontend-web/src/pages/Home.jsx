@@ -22,7 +22,7 @@ const Home = () => {
   return (
     <div className="home">
       <div className="hero">
-        <h1>🎵 Shazam Clone</h1>
+        <h1>🎵 TuneTrace</h1>
         <p className="tagline">
           Identify any song in seconds
         </p>

@@ -76,6 +76,7 @@ const SongList = () => {
           <div key={song.id} className="song-card">
             <div className="song-icon">🎵</div>
             <div className="song-details">
+              <p className="song-id">ID: {song.id}</p>
               <h3>{song.title}</h3>
               <p className="artist">{song.artist}</p>
               {song.album && <p className="album">{song.album}</p>}

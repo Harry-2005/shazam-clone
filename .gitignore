@@ -22,6 +22,15 @@ Thumbs.db
 
 # Sample data
 sample-songs/
+youtube_songs/
+music_previews/
+spotify_previews/
+
+# Downloaded chart data
+music_songs_list.json
+music_songs_list.csv
+spotify_songs_list.json
+spotify_songs_list.csv
 
 # Backend tests
 backend/tests/

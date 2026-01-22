@@ -32,18 +32,24 @@
   font-size: 28px;
   margin: 0 0 8px 0;
   color: #007bff;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
 }
 
 .song-info .artist {
   font-size: 20px;
   color: #666;
   margin: 8px 0;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
 }
 
 .song-info .album {
   font-size: 16px;
   color: #999;
   font-style: italic;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
 }
 
 .confidence-bar {

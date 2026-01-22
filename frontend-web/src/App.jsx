@@ -11,7 +11,7 @@ function App() {
       <div className="App">
         <nav className="navbar">
           <Link to="/" className="nav-logo">
-            🎵 Shazam Clone
+            🎵 TuneTrace
           </Link>
           <div className="nav-links">
             <Link to="/" className="nav-link">Home</Link>
@@ -31,7 +31,7 @@ function App() {
         </main>
 
         <footer className="footer">
-          <p>© 2024 Shazam Clone - Audio Fingerprinting Project</p>
+          <p>© 2026 TuneTrace - Audio Fingerprinting Project</p>
         </footer>
       </div>
     </Router>

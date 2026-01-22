@@ -35,16 +35,28 @@
   margin-bottom: 16px;
 }
 
+.song-details .song-id {
+  color: #999;
+  font-size: 12px;
+  margin: 0 0 8px 0;
+  font-family: monospace;
+}
+
 .song-details h3 {
   margin: 0 0 8px 0;
   color: #007bff;
   font-size: 20px;
+  padding-right: 30px;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
 }
 
 .song-details .artist {
   color: #666;
   font-size: 16px;
   margin: 4px 0;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
 }
 
 .song-details .album {
@@ -52,6 +64,8 @@
   font-size: 14px;
   font-style: italic;
   margin: 4px 0;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
 }
 
 .song-details .duration {

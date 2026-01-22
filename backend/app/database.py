@@ -62,6 +62,11 @@ class DatabaseManager:
         """Get a new database session."""
         return self.SessionLocal()
     
+    def close(self):
+        """Close database connection and dispose of engine."""
+        if hasattr(self, 'engine'):
+            self.engine.dispose()
+    
     def add_song(self, title: str, artist: str, 
                  fingerprints: List[Tuple[str, int]],
                  album: str = None, duration: float = None,
