@@ -63,7 +63,14 @@ const AudioRecorder = ({ onRecordingComplete }) => {
 
       // Start timer
       timerRef.current = setInterval(() => {
-        setRecordingTime((time) => time + 1);
+        setRecordingTime((time) => {
+          const newTime = time + 1;
+          // Auto-stop after 15 seconds for optimal speed
+          if (newTime >= 15) {
+            stopRecording();
+          }
+          return newTime;
+        });
       }, 1000);
 
     } catch (error) {
@@ -100,6 +107,7 @@ const AudioRecorder = ({ onRecordingComplete }) => {
   return (
     <div className="audio-recorder">
       <h3>🎤 Record Audio</h3>
+      <p className="recording-hint" style={{fontSize: '0.9em', color: '#666', marginTop: '-8px'}}>Record 5-15 seconds for best results</p>
       
       <div className="recorder-controls">
         {!isRecording ? (
@@ -114,6 +122,8 @@ const AudioRecorder = ({ onRecordingComplete }) => {
             <div className="recording-indicator">
               <span className="recording-dot"></span>
               Recording: {formatTime(recordingTime)}
+              {recordingTime >= 5 && recordingTime < 10 && <span style={{color: '#4caf50', marginLeft: '8px'}}>✓ Good</span>}
+              {recordingTime >= 10 && <span style={{color: '#ff9800', marginLeft: '8px'}}>⚠ Ready to stop</span>}
             </div>
             <button 
               className="btn btn-stop" 

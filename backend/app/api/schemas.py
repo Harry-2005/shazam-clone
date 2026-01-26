@@ -52,6 +52,7 @@ class DatabaseStats(BaseModel):
     total_songs: int
     total_fingerprints: int
     avg_fingerprints_per_song: float
+    last_updated: str = Field(..., description="ISO timestamp of when stats were calculated")
 
 class ErrorResponse(BaseModel):
     """Schema for error responses."""

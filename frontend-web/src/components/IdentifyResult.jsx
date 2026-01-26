@@ -7,7 +7,7 @@ import './IdentifyResult.css';
 const IdentifyResult = ({ result, onReset }) => {
   if (!result) return null;
 
-  const { matched, song, confidence, confidence_percentage } = result;
+  const { matched, song } = result; // Remove confidence fields
 
   return (
     <div className="identify-result">
@@ -20,21 +20,6 @@ const IdentifyResult = ({ result, onReset }) => {
             <h3>{song.title}</h3>
             <p className="artist">{song.artist}</p>
             {song.album && <p className="album">{song.album}</p>}
-          </div>
-
-          <div className="confidence-bar">
-            <div className="confidence-label">
-              Confidence: {confidence_percentage.toFixed(1)}%
-            </div>
-            <div className="progress-bar">
-              <div 
-                className="progress-fill"
-                style={{ width: `${confidence_percentage}%` }}
-              ></div>
-            </div>
-            <div className="confidence-details">
-              {confidence} matching fingerprints
-            </div>
           </div>
 
           <button className="btn btn-primary" onClick={onReset}>

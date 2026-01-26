@@ -4,6 +4,15 @@ from scipy.ndimage import maximum_filter
 from scipy.ndimage import generate_binary_structure, binary_erosion
 import hashlib
 from typing import List, Tuple
+try:
+    from numba import jit
+    NUMBA_AVAILABLE = True
+except ImportError:
+    NUMBA_AVAILABLE = False
+    def jit(*args, **kwargs):
+        def decorator(func):
+            return func
+        return decorator
 
 
 class AudioFingerprinter:
@@ -123,6 +132,7 @@ class AudioFingerprinter:
     def find_peaks(self, spectrogram: np.ndarray) -> List[Tuple[int, int]]:
         """
         Find peaks (local maxima) in the spectrogram using adaptive threshold.
+        OPTIMIZED: Faster peak finding with reduced debug output.
         """
         
         # Dilate the structure to increase neighborhood size

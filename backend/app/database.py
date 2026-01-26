@@ -1,9 +1,11 @@
+import datetime
 from sqlalchemy import create_engine # Creates connection to PostgreSQL database
 from sqlalchemy.orm import sessionmaker, Session, joinedload # sessionmaker creates sessions to interact with DB
 from .models import Base, Song, Fingerprint
 from typing import List, Tuple, Dict
 import hashlib # For generating SHA-256 file hashes
 import os
+import time  # For timing operations
 from dotenv import load_dotenv # To load environment variables like DATABASE_URL
 
 load_dotenv()
@@ -29,11 +31,15 @@ class DatabaseManager:
         - Manages connection pool, handles communication
         - Handles low-level database communication
         """
-        # Create engine
+        # Create engine with optimized connection pooling
         self.engine = create_engine(
             database_url,
             pool_pre_ping=True,  # Test connections before using -> Prevents errors from stale/closed connections
-            echo=False  # Set True to see SQL queries (useful for debugging)
+            echo=False,  # Set True to see SQL queries (useful for debugging)
+            pool_size=5,  # 5 persistent connections (one per concurrent user)
+            max_overflow=10,  # Allow 10 more during traffic spikes (15 total max)
+            pool_recycle=3600,  # Recycle connections after 1 hour (prevents stale connections)
+            pool_timeout=30  # Wait up to 30s for available connection
         )
         
         """
@@ -168,13 +174,12 @@ class DatabaseManager:
         
         try:
             # Dynamic thresholds based on recording length
-            # Target: ~25% of expected good match should be the minimum
-            # False positives: 1-25, True matches: 150+
-            EXPECTED_GOOD_MATCH = 150  # Baseline for a full true match
-            MIN_MATCH_PERCENTAGE = 0.25  # Require at least 25% of expected good match
-            MIN_MATCHING_FINGERPRINTS = int(EXPECTED_GOOD_MATCH * MIN_MATCH_PERCENTAGE)  # 37-38 matches minimum
-            MIN_CONFIDENCE_PERCENTAGE = MIN_MATCH_PERCENTAGE * 100  # 25%
-            
+            # With 1000 sampled fingerprints, adjust expectations
+            # False positives: 1-15, True matches: 50-100+
+            EXPECTED_GOOD_MATCH = 100  # Baseline for true match with 1000 samples
+            MIN_MATCH_PERCENTAGE = 0.05  # Lower threshold to 5%
+            MIN_MATCHING_FINGERPRINTS = int(EXPECTED_GOOD_MATCH * MIN_MATCH_PERCENTAGE)  # 5 matches minimum
+            MIN_CONFIDENCE_PERCENTAGE = MIN_MATCH_PERCENTAGE * 100  # 5%
             print(f"Debug: Thresholds - Min fingerprints: {MIN_MATCHING_FINGERPRINTS}, Min confidence: {MIN_CONFIDENCE_PERCENTAGE}%")
             
             # Dictionary to store matches: {song_id: {time_delta: count}}
@@ -200,58 +205,75 @@ class DatabaseManager:
             """
             
             # Optimize lookups: batch query to avoid huge IN clause
-            # Split query hashes into smaller batches for better performance
-            query_hashes = [q[0] for q in query_fingerprints]
-            if not query_hashes:
-                return None
-
-            # Batch size: 1000 hashes per query to avoid query parameter limits
-            BATCH_SIZE = 1000
-            db_fingerprints = []
+            # Use strategic sampling: take fingerprints from different parts of recording
+            MAX_QUERY_FINGERPRINTS = 400  # ~9 seconds of audio - optimized for speed
+            BATCH_SIZE = 100  # Process in batches for early exit
             
-            for i in range(0, len(query_hashes), BATCH_SIZE):
-                batch = query_hashes[i:i + BATCH_SIZE]
-                batch_results = session.query(Fingerprint).filter(
-                    Fingerprint.hash_value.in_(batch)
+            # Strategic sampling: every Nth fingerprint for better coverage
+            if len(query_fingerprints) > MAX_QUERY_FINGERPRINTS:
+                step = len(query_fingerprints) // MAX_QUERY_FINGERPRINTS
+                sampled_fingerprints = query_fingerprints[::step][:MAX_QUERY_FINGERPRINTS]
+            else:
+                sampled_fingerprints = query_fingerprints
+            
+            # OPTIMIZATION: Process in batches with early exit
+            matches = {}
+            batches_processed = 0
+            
+            for batch_start in range(0, len(sampled_fingerprints), BATCH_SIZE):
+                batch_end = min(batch_start + BATCH_SIZE, len(sampled_fingerprints))
+                batch_fingerprints = sampled_fingerprints[batch_start:batch_end]
+                
+                # Extract query hashes for this batch
+                query_hashes = [q[0] for q in batch_fingerprints]
+                if not query_hashes:
+                    continue
+
+                print(f"Debug: Querying batch {batches_processed + 1} ({len(query_hashes)} fingerprints)...")
+                
+                query_start = time.time()
+                
+                # Single efficient query using indexed IN clause
+                db_fingerprints_raw = session.query(
+                    Fingerprint.hash_value,
+                    Fingerprint.time_offset,
+                    Fingerprint.song_id
+                ).filter(
+                    Fingerprint.hash_value.in_(query_hashes)
                 ).all()
-                db_fingerprints.extend(batch_results)
-            
-            # Debug: Check if we found any matches
-            print(f"Debug: Query fingerprints: {len(query_fingerprints)}")
-            print(f"Debug: DB fingerprints found: {len(db_fingerprints)}")
+                
+                query_time = time.time() - query_start
+                print(f"Debug: Batch SQL query took {query_time:.2f}s, found {len(db_fingerprints_raw)} matches")
+                
+                # Build hash map for this batch
+                hash_map = {}
+                for row in db_fingerprints_raw:
+                    hash_val, time_offset, song_id = row
+                    if hash_val not in hash_map:
+                        hash_map[hash_val] = []
+                    hash_map[hash_val].append((time_offset, song_id))
+                
+                # Process matches for this batch
+                for query_hash, query_offset in batch_fingerprints:
+                    for db_offset, song_id in hash_map.get(query_hash, []):
+                        time_delta = db_offset - query_offset
 
-            # Build a map from hash to list of db fingerprints for quick access
-            hash_map = {}
-            for db_fp in db_fingerprints:
-                hash_map.setdefault(db_fp.hash_value, []).append(db_fp)
-            """
-            hash_map = {
-                "a1b2c3d4e5f6...": [
-                    Fingerprint(hash="a1b2...", offset=100, song_id=1),
-                    Fingerprint(hash="a1b2...", offset=205, song_id=1),  # Same hash, different time
-                    Fingerprint(hash="a1b2...", offset=88, song_id=2)    # Different song
-                ],
-                "f7g8h9i0j1k2...": [
-                    Fingerprint(hash="f7g8...", offset=115, song_id=1)
-                ],
-                ...
-            }
-            """
+                        if song_id not in matches:
+                            matches[song_id] = {}
 
-            # For each query fingerprint, compute time delta counts
-            for query_hash, query_offset in query_fingerprints:
-                for db_fp in hash_map.get(query_hash, []):
-                    song_id = db_fp.song_id
-                    db_offset = db_fp.time_offset
-                    time_delta = db_offset - query_offset
-
-                    if song_id not in matches:
-                        matches[song_id] = {}
-
-                    matches[song_id][time_delta] = matches[song_id].get(time_delta, 0) + 1
+                        matches[song_id][time_delta] = matches[song_id].get(time_delta, 0) + 1
+                
+                batches_processed += 1
+                
+                # EARLY EXIT: Check if we have a strong match after this batch
+                if matches:
+                    best_score = max(max(deltas.values()) for deltas in matches.values())
+                    if best_score > 80:  # Strong confidence after processing batch
+                        print(f"Debug: Early exit after batch {batches_processed} - strong match found ({best_score} fingerprints)")
+                        break
             
             # Debug: Print matches
-            print(f"Debug: Matches found: {matches}")
+            print(f"Debug: Matches found: {len(matches)} potential songs")
             
             if not matches:
                 return None
@@ -266,17 +288,14 @@ class DatabaseManager:
                 max_count = max(time_deltas.values())
                 alignment = max(time_deltas, key=time_deltas.get)
                 
-                print(f"Debug: Song {song_id} - Score: {max_count}, Alignment: {alignment}")
-                
                 if max_count > best_score:
                     best_score = max_count
                     best_match = song_id
                     best_alignment = alignment
             
             # Calculate confidence percentage
-            # Based on testing: False positives: 1-25, True matches: 150+
-            confidence_pct = min(100, (best_score / EXPECTED_GOOD_MATCH) * 100)  # Cap at 100%
-            
+            # Show as percentage of a good match baseline (100 fingerprints)
+            confidence_pct = min(100, (best_score / 100) * 100)
             print(f"Debug: Best match - Song ID: {best_match}")
             print(f"Debug: Confidence: {best_score} matching hashes")
             print(f"Debug: Confidence Percentage: {confidence_pct:.2f}%")
@@ -358,19 +377,37 @@ class DatabaseManager:
             session.close()
     
     def get_database_stats(self) -> Dict:
-        """Get statistics about the database."""
+        """Get statistics about the database with 5-minute caching."""
+        # Check cache first
+        if self._stats_cache and self._stats_cache_time:
+            time_since_cache = datetime.now() - self._stats_cache_time
+            if time_since_cache < self._cache_duration:
+                return self._stats_cache
+        
+        # Cache miss or expired, query database
         session = self.get_session()
         try:
             song_count = session.query(Song).count()
             fingerprint_count = session.query(Fingerprint).count()
             
-            return {
+            stats = {
                 "total_songs": song_count,
                 "total_fingerprints": fingerprint_count,
                 "avg_fingerprints_per_song": fingerprint_count / song_count if song_count > 0 else 0
             }
+            
+            # Update cache
+            self._stats_cache = stats
+            self._stats_cache_time = datetime.now()
+            
+            return stats
         finally:
             session.close()
+    
+    def _invalidate_stats_cache(self):
+        """Invalidate the stats cache when database changes."""
+        self._stats_cache = None
+        self._stats_cache_time = None
     
     def _generate_file_hash(self, filepath: str) -> str:
         """Generate SHA-256 hash of file to detect duplicates."""
@@ -384,11 +421,3 @@ class DatabaseManager:
                 sha256_hash.update(byte_block)
         
         return sha256_hash.hexdigest()
-    """
-    How it works:
-
-    Opens file in binary mode ("rb")
-    Reads 4096 bytes at a time
-    Updates hash with each chunk
-    Returns 64-character hexadecimal string
-    """

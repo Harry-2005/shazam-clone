@@ -11,6 +11,7 @@ import tempfile # Create temporary files for upload
 import os
 import librosa
 from typing import List
+import time
 
 # Create router
 router = APIRouter()
@@ -130,6 +131,7 @@ async def identify_song(
             tmp_path = tmp.name
         
         try:
+            start_time = time.time()
             
             print(f"\n{'='*60}")
             print(f"Identifying song from: {file.filename}")
@@ -137,9 +139,11 @@ async def identify_song(
             
             # Generate fingerprints from recording with preprocessing for better matching
             # Preprocessing: trim silence and normalize audio
+            fingerprint_start = time.time()
             query_fingerprints = fingerprinter.fingerprint_file(tmp_path, preprocess=True)
+            fingerprint_time = time.time() - fingerprint_start
             
-            print(f"Generated {len(query_fingerprints)} query fingerprints")
+            print(f"Generated {len(query_fingerprints)} query fingerprints in {fingerprint_time:.2f}s")
             
             if not query_fingerprints:
                 raise HTTPException(
@@ -148,9 +152,17 @@ async def identify_song(
                 )
             
             # Find matches
+            match_start = time.time()
             match_result = db_manager.find_matches(query_fingerprints)
+            match_time = time.time() - match_start
             
-            print(f"Match result: {match_result}")
+            total_time = time.time() - start_time
+            
+            print(f"\nTiming Breakdown:")
+            print(f"  Fingerprinting: {fingerprint_time:.2f}s")
+            print(f"  Database Query: {match_time:.2f}s")
+            print(f"  Total Time:     {total_time:.2f}s")
+            print(f"\nMatch result: {match_result}")
             print(f"{'='*60}\n")
             
             if match_result and match_result.get('confidence', 0) > 0:
