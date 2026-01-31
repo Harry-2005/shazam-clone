@@ -362,8 +362,6 @@
   ## Next Steps
   
   **Upcoming Changes:**
-  - Database population with downloaded songs from YouTube playlists
-  - Bulk fingerprinting and upload of ~1000+ songs across multiple genres
   - Testing and validation of matching accuracy with real-world song database
   - Performance benchmarking with populated database
   - Fine-tuning matching thresholds based on larger dataset
