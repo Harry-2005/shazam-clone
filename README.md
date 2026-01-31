@@ -362,7 +362,6 @@
   ## Next Steps
   
   **Upcoming Changes:**
-  - Testing and validation of matching accuracy with real-world song database
   - Performance benchmarking with populated database
   - Fine-tuning matching thresholds based on larger dataset
 
